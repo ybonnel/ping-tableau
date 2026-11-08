@@ -15,19 +15,21 @@ function compute(teams,results){
  const slots=Array(size).fill(null); // Distribute byes across first-round pairs.
  for(let i=0;i<Math.min(size/2,teams.length);i++)slots[i*2]=teams[i];
  for(let i=size/2;i<teams.length;i++)slots[(i-size/2)*2+1]=teams[i];
- function group(entries,path,low,depth){
+ function group(entries,path,low,depth,occupied,placeLow){
   if(entries.length===1){if(entries[0]!=null)ranking.push({place:low,team:entries[0]});return;}
-  const g={low,path,high:low+entries.length-1,matches:[]};(rounds[depth]??=[]).push(g);
-  const winners=[],losers=[];
+  const count=occupied.filter(Boolean).length;
+  const g={low,path,high:low+entries.length-1,placeLow,placeHigh:placeLow+count-1,matches:[]};(rounds[depth]??=[]).push(g);
+  const winners=[],losers=[],winnerSlots=[],loserSlots=[];
   for(let i=0;i<entries.length;i+=2){
    const a=entries[i],b=entries[i+1],id=path+'-'+i/2;let w,l;
+   winnerSlots.push(occupied[i]||occupied[i+1]);loserSlots.push(occupied[i]&&occupied[i+1]);
    const r=results[id];let valid=false;
    if(a===undefined||b===undefined){}else if(a===null||b===null){w=a??b;l=null;}else if(r&&r.a===a&&r.b===b&&Number.isInteger(r.x)&&Number.isInteger(r.y)&&r.x>=0&&r.y>=0&&r.x<=999&&r.y<=999&&r.x!==r.y){valid=true;w=r.x>r.y?a:b;l=r.x>r.y?b:a;}
    const m={id,a,b,w,l,r:valid?r:null,playable:a!=null&&b!=null};g.matches.push(m);matches.push(m);winners.push(w);losers.push(l);
   }
-  group(winners,path+'W',low,depth+1);group(losers,path+'L',low+entries.length/2,depth+1);
+  group(winners,path+'W',low,depth+1,winnerSlots,placeLow);group(losers,path+'L',low+entries.length/2,depth+1,loserSlots,placeLow+winnerSlots.filter(Boolean).length);
  }
- group(slots,'R',1,0);
+ group(slots,'R',1,0,slots.map(t=>t!==null),1);
  // Empty padded positions may occur between real teams: compress final ranks.
  ranking.sort((a,b)=>a.place-b.place);
  const complete=matches.every(m=>m.w!==undefined);if(complete)ranking.forEach((r,i)=>r.place=i+1);
@@ -43,7 +45,7 @@ function render(){
  view=compute(state.teams,state.results);$('heading').textContent=state.title;$('intro').textContent='Du premier échange au classement final.';
  const real=view.matches.filter(m=>m.a!==null&&m.b!==null),done=real.filter(m=>m.r).length;
  $('stats').innerHTML=`<span><b>${state.teams.length}</b>équipes</span><span><b>${done}</b>rencontres terminées</span><span class="badge">${view.complete?'Tournoi terminé 🏆':'Tournoi en cours'}</span>`;
- $('rounds').innerHTML=view.rounds.map((groups,d)=>`<section class="round"><h2>Tour ${d+1}</h2>${groups.map(g=>`<div class="group"><h3>${g.low===1?'Tableau principal':'Consolante · parcours '+g.path.slice(1).replaceAll('W','V').replaceAll('L','D')}</h3>${g.matches.filter(m=>!(m.a===null&&m.b===null)).map(m=>`<form class="match" data-id="${m.id}"><small>Match ${m.id}${m.w!==undefined&&!m.r?' · exemption':''}</small>${[m.a,m.b].map((t,i)=>`<label class="side ${m.w===t&&t!=null?'won':''}"><span>${t===undefined?'En attente':t===null?'Exempt':escape(t)}</span>${m.playable?`<input type="number" name="${i?'y':'x'}" min="0" max="999" step="1" required aria-label="Score ${escape(t)}" value="${m.r?(i?m.r.y:m.r.x):''}">`:''}</label>`).join('')}${m.playable?`<button type="submit">${m.r?'Modifier le résultat':'Valider le score'}</button>`:''}</form>`).join('')}</div>`).join('')}</section>`).join('');
+ $('rounds').innerHTML=view.rounds.map((groups,d)=>`<section class="round"><h2>Tour ${d+1}</h2>${groups.filter(g=>g.placeHigh>=g.placeLow).map(g=>`<div class="group"><h3>${g.low===1?'Tableau principal':'Consolante · parcours '+g.path.slice(1).replaceAll('W','V').replaceAll('L','D')}</h3><div class="muted">${g.placeLow===g.placeHigh?'Place '+g.placeLow:'Places '+g.placeLow+' à '+g.placeHigh}</div>${g.matches.filter(m=>!(m.a===null&&m.b===null)).map(m=>`<form class="match" data-id="${m.id}"><small>Match ${m.id}${m.w!==undefined&&!m.r?' · exemption':''}</small>${[m.a,m.b].map((t,i)=>`<label class="side ${m.w===t&&t!=null?'won':''}"><span>${t===undefined?'En attente':t===null?'Exempt':escape(t)}</span>${m.playable?`<input type="number" name="${i?'y':'x'}" min="0" max="999" step="1" required aria-label="Score ${escape(t)}" value="${m.r?(i?m.r.y:m.r.x):''}">`:''}</label>`).join('')}${m.playable?`<button type="submit">${m.r?'Modifier le résultat':'Valider le score'}</button>`:''}</form>`).join('')}</div>`).join('')}</section>`).join('');
  $('rankhint').textContent=view.complete?'Classement final de toutes les équipes.':'Le classement complet apparaîtra une fois toutes les rencontres terminées.';
  $('ranking').innerHTML=view.complete?view.ranking.map(r=>`<li><b>${r.place}</b><span>${escape(r.team)}</span></li>`).join(''):'<li>En attente des résultats</li>';
 }
