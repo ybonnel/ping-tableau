@@ -11,6 +11,13 @@ for(let n=2;n<=64;n++)for(let trial=0;trial<5;trial++){
   for(const m of ready){const win=Math.random()>.5;results[m.id]={a:m.a,b:m.b,x:win?3:1,y:win?1:3};games++;}
  }
  assert(v.complete,'Tournament '+n+' must finish');assert.equal(v.ranking.length,n);assert.equal(new Set(v.ranking.map(r=>r.team)).size,n);assert.deepEqual(Array.from(v.ranking,r=>r.place),Array.from({length:n},(_,i)=>i+1));
+ // Each group's displayed range must match its teams' final real places, including byes.
+ for(const groups of v.rounds)for(const g of groups){
+  const members=g.matches.flatMap(m=>[m.a,m.b]).filter(t=>t!=null);
+  const places=v.ranking.filter(r=>members.includes(r.team)).map(r=>r.place);
+  assert.equal(g.placeHigh-g.placeLow+1,members.length);
+  if(places.length){assert.equal(g.placeLow,Math.min(...places));assert.equal(g.placeHigh,Math.max(...places));}
+ }
  // Correct the first result; downstream scores involving changed teams must be invalid.
  const first=v.matches.find(m=>m.r);results[first.id]={...first.r,x:first.r.y,y:first.r.x};const changed=ctx.compute(teams,results);if(n>2){assert(!changed.complete);assert(changed.matches.some(m=>m.playable&&!m.r));}else assert(changed.complete);
 }
